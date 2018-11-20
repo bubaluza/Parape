@@ -1,2 +1,2 @@
 # Parape
-Files to parape project.
+Files of project PARAPE. A vibratory alarm with phisiotherapeutical intuitous.
