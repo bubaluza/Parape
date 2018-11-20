@@ -7,12 +7,10 @@
     Software destined to load on a ESP-32 */
 
 // --------------- LIBRARIES INCLUDED ---------------
-
 #include "WiFi.h"                                                   // High level library to ESP-32 WIFI
 #include <esp_wifi.h>                                               // Low level library to ESP-32 WIFI
 #include "FS.h"                                                     // File System
 #include "SPIFFS.h"                                                 // SPIFFS
-
 // --------------- OBJECT INSTANCE ---------------
 WiFiServer servidor(80);                                            //Instance a WifiServer object 'servidor' on port 80
 // --------------- TIMER POINTERS ---------------
@@ -41,13 +39,12 @@ const char *password = "parape123";
 #define defaultJoke 2
 // --------------- TIME DEFINE ---------------
 #define tempoMotorMs 3000
-#define tempoTravadoUs 20000000
-#define tempoCheckUs 15000000
+#define tempoTravadoUs 60000000
+#define tempoCheckUs 30000000
 // ---------------- VAR CONFIG LOADED -------------------
 short int pwmLoad;
 short int ativJokeLoad;
 int numPassosErradoLoad;
-
 // ---------------- SENSOR VAR VALUE ----------------
 int ValueSensorCalcanhar = 0;
 int ValueSensorMeio = 0;
@@ -55,7 +52,6 @@ int ValueSensorPonta = 0;
 int ValueAcelerX = 0;
 int ValueAcelerY = 0;
 int ValueAcelerZ = 0;
-
 // ---------------- AUX VAR ----------------
 bool sair = 0;
 bool flag = 0; //int
@@ -65,8 +61,6 @@ bool limpeza = 0;
 bool leitura = 0;
 bool wifiStatus = 0;
 int numMotorAtivadoCheck = 0;
-
-
 // ---------------- FUNCTIONS DECLARATION ----------------
 void getSinal() ;
 void vibrar();
@@ -83,7 +77,6 @@ void listDir(fs::FS &fs, const char * dirname, uint8_t levels);
 void readFile(fs::FS &fs, const char * path);
 String readFileTo(fs::FS &fs, const char * path);
 bool estaParado();
-
 // ---------------- STARTUP SETUP ----------------
 void setup() {
   delay(2000);
@@ -111,10 +104,6 @@ void setup() {
     appendFile(SPIFFS, "/passos.txt", "0");
   }
   numPassosErradoLoad = (readFileTo(SPIFFS, "/passos.txt")).toInt();
-  //  Serial.println(pwmLoad);
-  //  Serial.println(ativJokeLoad);
-  //  Serial.println(numPassosErradoLoad);
-
   ledcAttachPin(PinMotor, 2);
   ledcSetup(2, 500, 10);
 
@@ -171,10 +160,10 @@ void loop() {
     if (ValueSensorCalcanhar > forca && (!estaParado())) {      // se pisar com o calcanhar e n estiver parado
       while (ValueSensorCalcanhar > forca || flag != 1) {      // enquanto está apertado o calcanhar ou  nao foi afrouxado
         getSinal();
-        if (ValueSensorPonta > forca) {                   //se pisar com a ponta
-          sair = 1;                                     //flag para sair
-          while (ValueSensorPonta > forca)            //espera soltar ponta
-            getSinal();                                 //pega sinal
+        if (ValueSensorPonta > forca) {                       //se pisar com a ponta
+          sair = 1;                                           //flag para sair
+          while (ValueSensorPonta > forca)                    //espera soltar ponta
+            getSinal();                                       //pega sinal
           break;
         }
         if (sair == 1)
@@ -183,7 +172,6 @@ void loop() {
           flag = 1;
       }
     }
-
     else if (ValueSensorPonta > forca && (!estaParado())) {
       while (ValueSensorPonta > forca || flag != 1) {      // enquanto está apertado o calcanhar ou  nao foi afrouxado
         getSinal();
@@ -224,10 +212,6 @@ void getSinal() {
   Serial.println(ValueSensorPonta);
   Serial.printf("num: ");
   Serial.println(numMotorAtivadoCheck);
-  //  if (estaParado())
-  //    Serial.println("ta parado");
-  //  else Serial.println("nao ta parado");
-  //  Serial.println("");
 }
 
 void vibrar() {
@@ -309,19 +293,34 @@ void htmlx() {
             }
             payload = information.substring(0, information.indexOf(" HTTP/1.1"));
             if (payload != "favicon.ico" && payload != "") {
-              vibration = payload.substring(payload.indexOf("vibration=") + 10, payload.indexOf('&'));
-              String  playtime1 =  payload.substring(payload.indexOf("playtime=") + 9);
-              playtime = playtime1.substring(0, playtime1.indexOf('&'));
-              sleep = payload.substring(payload.indexOf("sleep=") + 6);
-              pwmLoad = vibration.toInt();
-              ativJokeLoad = playtime.toInt();
-              Serial.println("vou salvar o seguinte");
-              Serial.println((String)pwmLoad);
-              Serial.println((String)ativJokeLoad);
-              deleteFile(SPIFFS, "/pwm.txt");
-              appendFile(SPIFFS, "/pwm.txt", (String)pwmLoad);
-              deleteFile(SPIFFS, "/playtime.txt");
-              appendFile(SPIFFS, "/playtime.txt", (String)ativJokeLoad);
+              if (payload == "resetConfiguration") {
+                pwmLoad = defaultPwm;
+                ativJokeLoad = defaultJoke;
+                deleteFile(SPIFFS, "/pwm.txt");
+                appendFile(SPIFFS, "/pwm.txt", (String)pwmLoad );
+                deleteFile(SPIFFS, "/playtime.txt");
+                appendFile(SPIFFS, "/playtime.txt", (String)ativJokeLoad);
+              } else if (payload == "clearPassCounter") {
+                numPassosErradoLoad = 0;
+                deleteFile(SPIFFS, "/passos.txt");
+                appendFile(SPIFFS, "/passos.txt", "0");
+              } else {
+                vibration = payload.substring(payload.indexOf("vibration=") + 10, payload.indexOf('&'));
+                String  playtime1 =  payload.substring(payload.indexOf("playtime=") + 9);
+                playtime = playtime1.substring(0, playtime1.indexOf('&'));
+                pwmLoad = vibration.toInt();
+                ativJokeLoad = playtime.toInt();
+                if (pwmLoad > 100)
+                    pwmLoad = 100;
+                else if (pwmLoad < 0)
+                    pwmLoad = 0;
+                if (playtime < 1)
+                    playtime = 1;
+                deleteFile(SPIFFS, "/pwm.txt");
+                appendFile(SPIFFS, "/pwm.txt", (String)pwmLoad);
+                deleteFile(SPIFFS, "/playtime.txt");
+                appendFile(SPIFFS, "/playtime.txt", (String)ativJokeLoad);
+              }
             }
           }
           // HTTP headers always start with a response code (e.g. HTTP/1.1 200 OK)
@@ -346,9 +345,14 @@ void htmlx() {
           html += "</div>";
           html += "</form>";
           html += "<br>";
-          html += "<div class='row'><div class='col-xs-6 col-sm-6 col-md-6 col-lg-6'><p>Contagem de Passos</p><span id='passCounter'> <h3> :passCounter </h3> </span></div>";
-          html += "<div class='col-xs-6 col-sm-6 col-md-6 col-lg-6'><button class='btn btn-danger btn-sm' id='clearPassCounter' type='button'>Zerar Passos</button><br><br><button class='btn btn-info btn-sm' id='resetConfigurations' type='button'>Restaurar Configurações</button></div></div>";
-          html += "</div></body></html>";
+          html += "<div class='row'>";
+          html += " <div class='col-xs-6 col-sm-6 col-md-6 col-lg-6'><p>'Contagem de Passos'</p><span id='passCounter'>:passCounter</span></div>";
+          html += "<div class='col-xs-6 col-sm-6 col-md-6 col-lg-6'><a href='clearPassCounter'><button class='btn btn-danger btn-sm' id='clearPassCounter' type='button'>Zerar Passos</button></a>";
+          html += "<br><br>";
+          html += "<a href='resetConfiguration'><button class='btn btn-info btn-sm' id='resetConfigurations' type='button'>Restaurar Configurações</button></a></div>";
+          html += "</div>";
+          html += "</body>";
+          html += "</html>";
           html.replace(":vibration", (String)pwmLoad);
           html.replace(":playtime", (String)ativJokeLoad);
           html.replace(":sleep", "20");
