@@ -4,7 +4,8 @@
     Software destined to the PARAPE projec. The project cover the analyse, processing and the action to
     the perfect step-walk. The main reason of this project was to be used on a kid that itself walking
     was weakened, showing to him when he walk wrong.
-    Software destined to load on a ESP-32 */
+    Software destined to load on a ESP-32.
+    Source code and more information: https://github.com/bubaluza/Parape */
 
 // --------------- LIBRARIES INCLUDED ---------------
 #include "WiFi.h"                                                   // High level library to ESP-32 WIFI
@@ -156,14 +157,14 @@ void loop() {
     htmlx();
   }
   else {
-    getSinal();                                                 // pega sinal
-    if (ValueSensorCalcanhar > forca && (!estaParado())) {      // se pisar com o calcanhar e n estiver parado
-      while (ValueSensorCalcanhar > forca || flag != 1) {      // enquanto está apertado o calcanhar ou  nao foi afrouxado
+    getSinal();                                                 
+    if (ValueSensorCalcanhar > forca && (!estaParado())) {      
+      while (ValueSensorCalcanhar > forca || flag != 1) {      
         getSinal();
-        if (ValueSensorPonta > forca) {                       //se pisar com a ponta
-          sair = 1;                                           //flag para sair
-          while (ValueSensorPonta > forca)                    //espera soltar ponta
-            getSinal();                                       //pega sinal
+        if (ValueSensorPonta > forca) {                       
+          sair = 1;                                           
+          while (ValueSensorPonta > forca)                    
+            getSinal();                                      
           break;
         }
         if (sair == 1)
@@ -173,12 +174,12 @@ void loop() {
       }
     }
     else if (ValueSensorPonta > forca && (!estaParado())) {
-      while (ValueSensorPonta > forca || flag != 1) {      // enquanto está apertado o calcanhar ou  nao foi afrouxado
+      while (ValueSensorPonta > forca || flag != 1) {      
         getSinal();
-        if (ValueSensorCalcanhar > forca) {                   //se pisar com a ponta
-          sair = 1;                                     //flag para sair
-          while (ValueSensorCalcanhar > forca)            //espera soltar ponta
-            getSinal();                                 //pega sinal
+        if (ValueSensorCalcanhar > forca) {                  
+          sair = 1;                                    
+          while (ValueSensorCalcanhar > forca)            
+            getSinal();                                
           break;
         }
         if (sair == 1)
@@ -187,6 +188,22 @@ void loop() {
           flag = 1;
       }
     }
+    else if (ValueSensorMeio > força && (!estaParado())) {
+      while (ValueSensorMeio > forca || flag != 1) {
+        getSinal();
+        if (ValueSensorPonta > forca) {                   
+          sair = 1;                                     
+          while (ValueSensorPonta > forca)           
+            getSinal();                                 
+          break;
+        }    
+        if (sair == 1)
+          break;
+        if (ValueSensorPonta <= forca)
+          flag = 1;
+      }
+    }
+    
     if (flag == 1) {
       numMotorAtivadoCheck++;
       numPassosErradoLoad++;
@@ -340,7 +357,7 @@ void htmlx() {
           html += "<input class=form-control id=vibration name=vibration value=':vibration' type=number min=1 max=100>";
           html += "</div>";
           html += "<div class='col-xs-12 col-sm-12 col-md-3 col-lg-3'><label for='playtime'><abbr title='Vezes em que o vibrar deve ser desconsiderado por se tratar de uma brincadeira'>Playtime</abbr></label><input class='form-control' id='playtime' value=':playtime'type='number' min='1' name='playtime'></div>";
-          html += "<div class='col-xs-12 col-sm-12 col-md-3 col-lg-3'><label for='sleep'><abbr title='Tempo de Descanso'>Tempo de Descanso(s)</abbr></label><br><input class='form-control' value=':sleep'id='sleep' type='number' name=sleep></div>";
+        //html += "<div class='col-xs-12 col-sm-12 col-md-3 col-lg-3'><label for='sleep'><abbr title='Tempo de Descanso'>Tempo de Descanso(s)</abbr></label><br><input class='form-control' value=':sleep'id='sleep' type='number' name=sleep></div>";
           html += "<div class='col-xs-12 col-sm-12 col-md-12 col-lg-12' style='padding-top: 10px'><button type='submit' class='btn btn-success btn-block'>Salvar Configuração</button></div>";
           html += "</div>";
           html += "</form>";
