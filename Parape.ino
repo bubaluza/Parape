@@ -26,9 +26,9 @@ const char *password = "parape123";
 #define PinValueSensorCalcanhar 34
 #define PinValueSensorMeio 39
 #define PinValueSensorPonta 36
-#define PinAcelerX  33
+#define PinAcelerX  35
 #define PinAcelerY  32
-#define PinAcelerZ  35
+#define PinAcelerZ  32
 #define botao 23
 // --------------- OUTPUT PIN ---------------
 #define PinMotor 4
@@ -278,12 +278,13 @@ void stopTimer2() {
 }
 
 bool estaParado() {
-  ValueAcelerX = analogRead(PinAcelerX); //read from PinAcelerX
-  ValueAcelerY = analogRead(PinAcelerY); //read from PinAcelerY
-  ValueAcelerZ = analogRead(PinAcelerZ); //read from PinAcelerZ
-  if ( ( (ValueAcelerX > 2170) && (ValueAcelerX < 2275) ) && ( (ValueAcelerY > 2170) && (ValueAcelerY < 2275) ) && ( (ValueAcelerZ > 2170) && (ValueAcelerZ < 2275) )      )
-    return true;
-  else return false;
+  ValueAcelerX = ((analogRead(PinAcelerX))*3.3)/4095; //read from PinAcelerX
+  ValueAcelerY = ((analogRead(PinAcelerY))*3.3)/4095; //read from PinAcelerY
+  ValueAcelerZ = ((analogRead(PinAcelerZ))*3.3)/4095; //read from PinAcelerZ
+  float mod=sqrt( pow(ValueAcelerX,2) + pow(ValueAcelerY,2) + pow(ValueAcelerZ,2) );
+    if( mod>=2.90 && mod <= 3.21)
+        return true;
+      else return false;
 }
 
 void htmlx() {
