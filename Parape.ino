@@ -188,7 +188,7 @@ void loop() {
           flag = 1;
       }
     }
-    else if (ValueSensorMeio > força && (!estaParado())) {
+    else if (ValueSensorMeio > forca && (!estaParado())) {
       while (ValueSensorMeio > forca || flag != 1) {
         getSinal();
         if (ValueSensorPonta > forca) {                   
@@ -199,7 +199,7 @@ void loop() {
         }    
         if (sair == 1)
           break;
-        if (ValueSensorPonta <= forca)
+        if (ValueSensorMeio <= forca)
           flag = 1;
       }
     }
@@ -331,8 +331,8 @@ void htmlx() {
                     pwmLoad = 100;
                 else if (pwmLoad < 0)
                     pwmLoad = 0;
-                if (playtime < 1)
-                    playtime = 1;
+                if (ativJokeLoad < 1)
+                    ativJokeLoad = 1;
                 deleteFile(SPIFFS, "/pwm.txt");
                 appendFile(SPIFFS, "/pwm.txt", (String)pwmLoad);
                 deleteFile(SPIFFS, "/playtime.txt");
