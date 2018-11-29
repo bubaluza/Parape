@@ -13,234 +13,235 @@
 #include "FS.h"                                                     // File System
 #include "SPIFFS.h"                                                 // SPIFFS
 // --------------- OBJECT INSTANCE ---------------
-WiFiServer servidor(80);                                            //Instance a WifiServer object 'servidor' on port 80
+WiFiServer server (80);                                             //Instance a WifiServer object 'server' on port 80
 // --------------- TIMER POINTERS ---------------
-hw_timer_t * timer = NULL;
-hw_timer_t * timer2 = NULL;
+hw_timer_t * timer = NULL;                                          // Timer pointer 1
+hw_timer_t * timer2 = NULL;                                         // Timer pointer 2
 // --------------- SSID/PASSWORD ESP32 ---------------
-const char *ssid = "PARAPE";
-const char *password = "parape123";
+const char *ssid = "PARAPE";                                        // Name SSID
+const char *password = "parape123";                                 // password to WiFi
 // --------------- SPIFFS ---------------
 #define FORMAT_SPIFFS_IF_FAILED true
 // --------------- INPUT PIN ---------------
-#define PinValueSensorCalcanhar 34
-#define PinValueSensorMeio 39
-#define PinValueSensorPonta 36
-#define PinAcelerX  35
-#define PinAcelerY  32
-#define PinAcelerZ  32
-#define botao 23
+#define PinValueSensorHeel 34                                       //Read Pin of Heel Sensor
+#define PinValueSensorCenter 39                                     //Read Pin of Center Sensor
+#define PinValueSensorTip 36                                        //Read Pin of Tip Sensor
+#define PinAccelX  35                                               //Read Pin of accelerometer X
+#define PinAccelY  32                                               //Read Pin of accelerometer Y
+#define PinAccelZ  32                                               //Read Pin of accelerometer Z
+#define PinButton 23
 // --------------- OUTPUT PIN ---------------
-#define PinMotor 4
-#define PinLED 2
+#define PinMotor 4                                                  //Motor Pin
+#define PinLED 2                                                    // LED Pin
 // --------------- STRENGTH LIMIT SENSOR ---------------
-#define forca 1500
+#define StrLimit 1500                                               //Ac-Dc Limit
 // --------------- CONFIG DEFAULT ---------------
-#define defaultPwm 50
-#define defaultJoke 2
+#define defaultPwm 50                                               //Default configuration of Motor PWM intensity
+#define defaultJoke 2                                               //Default configuration of Playtime
 // --------------- TIME DEFINE ---------------
-#define tempoMotorMs 3000
-#define tempoTravadoUs 60000000
-#define tempoCheckUs 30000000
+#define TimeMotorMs 3000                                            //Vibration Time
+#define TimeLockedUs 60000000                                       //Locked Up time Playtime
+#define TimeCheckUs 30000000                                        //Check Time Playtime
 // ---------------- VAR CONFIG LOADED -------------------
-short int pwmLoad;
-short int ativJokeLoad;
-int numPassosErradoLoad;
+short int pwmLoad;                                                  //Use/Load PWM Intensity
+short int activeJokeLoad;                                           //Use/Load Playtime
+int wrongStepsLoad;                                                 //Use/load wrong Steps
 // ---------------- SENSOR VAR VALUE ----------------
-int ValueSensorCalcanhar = 0;
-int ValueSensorMeio = 0;
-int ValueSensorPonta = 0;
-int ValueAcelerX = 0;
-int ValueAcelerY = 0;
-int ValueAcelerZ = 0;
+int ValueSensorHeel = 0;                                            //Heel Sensor Value
+int ValueSensorCenter = 0;                                          //Center Sensor Value
+int ValueSensorTip = 0;                                             //Tip Sensor  Value
+int ValueAccelX = 0;                                                //accelerometer X Value
+int ValueAccelY = 0;                                                //accelerometer Y Value
+int ValueAccelZ = 0;                                                //accelerometer Z Value
 // ---------------- AUX VAR ----------------
-bool sair = 0;
-bool flag = 0; //int
-bool sistemaTravado = 0;
-bool interruption = 0;
-bool limpeza = 0;
-bool leitura = 0;
-bool wifiStatus = 0;
-int numMotorAtivadoCheck = 0;
+bool exit = 0;                                                      //flag to exit if steps-sequence are right
+bool flag = 0;                                                      //flag to Activate Motor if steps-sequence are Wrong
+bool lockedSystem = 0;                                              //flag to Locked up System
+bool interruption = 0;                                              //flag to Interruption System
+bool cleaning = 0;                                                  //flag to clean flags
+bool read = 0;                                                      //Buttom Digital Read
+bool wifiStatus = 0;                                                //Configuration Mode Status
+int ActivadeMotorCheck = 0;                                         //Lower Limit Playtime
 // ---------------- FUNCTIONS DECLARATION ----------------
-void getSinal() ;
-void vibrar();
-void checkMotor() ;
-void startTimer();
-void stopTimer();
-void interrupionBlink();
-void startTimer2();
-void stopTimer2();
-void htmlx();
-void appendFile(fs::FS &fs, const char * path, String  mensagem);
-void deleteFile(fs::FS &fs, const char * path);
-void listDir(fs::FS &fs, const char * dirname, uint8_t levels);
-void readFile(fs::FS &fs, const char * path);
-String readFileTo(fs::FS &fs, const char * path);
-bool estaParado();
+void getSinal() ;                                                   //Read Sensors
+void pulseMotor();                                                  //Vibrate Motor
+void checkMotor() ;                                                 //Check activate number Motor
+void startTimer();                                                  //Start Timer 1
+void stopTimer();                                                   //Stop Timer 1
+void interrupionBlink();                                            //Playtime LED blink
+void startTimer2();                                                 //Start Timer 2
+void stopTimer2();                                                  //Stop Timer 2
+void htmlx();                                                       //configuration page
+void appendFile(fs::FS &fs, const char * path, String  message);    //Change File content
+void deleteFile(fs::FS &fs, const char * path);                     //Delete File
+void listDir(fs::FS &fs, const char * dirname, uint8_t levels);     //List Director (only to check)
+void readFile(fs::FS &fs, const char * path);                       //Read File content to Serial(only to check)
+String readFileTo(fs::FS &fs, const char * path);                   //Read File content
+bool isStopped();                                                   //Check if the person is standing
 // ---------------- STARTUP SETUP ----------------
 void setup() {
   delay(2000);
   pinMode(PinLED, OUTPUT);
   digitalWrite (PinLED, HIGH);
   Serial.begin(115200);
-  if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {
+  if (!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)) {                     //Mount SPIFFS
     Serial.println("SPIFFS Mount Failed");
     return;
   }
-  if (readFileTo(SPIFFS, "/pwm.txt") == "erro") {
+  if (readFileTo(SPIFFS, "/pwm.txt") == "error") {                  //Check if dont exist file/Content or Open Error
     deleteFile(SPIFFS, "/pwm.txt");
-    appendFile(SPIFFS, "/pwm.txt", (String)defaultPwm);
+    appendFile(SPIFFS, "/pwm.txt", (String)defaultPwm);             //Put Default PWM file
   }
-  pwmLoad = (readFileTo(SPIFFS, "/pwm.txt")).toInt();
+  pwmLoad = (readFileTo(SPIFFS, "/pwm.txt")).toInt();               //Read PWM file
 
-  if (readFileTo(SPIFFS, "/playtime.txt") == "erro") {
+  if (readFileTo(SPIFFS, "/playtime.txt") == "error") {             //Check if dont exist file/Content or Open Error
     deleteFile(SPIFFS, "/playtime.txt");
-    appendFile(SPIFFS, "/playtime.txt", (String)defaultJoke);
+    appendFile(SPIFFS, "/playtime.txt", (String)defaultJoke);       //Put Default Playtime file
   }
-  ativJokeLoad = (readFileTo(SPIFFS, "/playtime.txt")).toInt();
+  activeJokeLoad = (readFileTo(SPIFFS, "/playtime.txt")).toInt();   //Read PWM file
 
-  if (readFileTo(SPIFFS, "/passos.txt") == "erro") {
-    deleteFile(SPIFFS, "/passos.txt");
-    appendFile(SPIFFS, "/passos.txt", "0");
+  if (readFileTo(SPIFFS, "/steps.txt") == "error") {                //Check if dont exist file/Content or Open Error
+    deleteFile(SPIFFS, "/steps.txt");
+    appendFile(SPIFFS, "/steps.txt", "0");                          //Put '0' on Step File
   }
-  numPassosErradoLoad = (readFileTo(SPIFFS, "/passos.txt")).toInt();
-  ledcAttachPin(PinMotor, 2);
-  ledcSetup(2, 500, 10);
+  wrongStepsLoad = (readFileTo(SPIFFS, "/steps.txt")).toInt();      //Read Steps File
+  ledcAttachPin(PinMotor, 2);                                       //put PinMotor on PWM channel 2
+  ledcSetup(2, 500, 10);                                            //set PWM channel 2: 500 hz, 10 bits resolution
 
-  WiFi.softAP(ssid, password);
-  esp_wifi_stop();
+  WiFi.softAP(ssid, password);                                      //Start Wifi on AP Mode
+  esp_wifi_stop();                                                  //Stop WiFi
   delay(5000);
   Serial.println("ESP32 started and openned Serial");
   pinMode(PinMotor, OUTPUT);
-  pinMode(botao, INPUT_PULLDOWN);
+  pinMode(PinButton, INPUT_PULLDOWN);
   digitalWrite (PinMotor, LOW);
-  servidor.begin();
+  server.begin();                                                   //Start a WiFi server
   startTimer();
   digitalWrite (PinLED, LOW);
 }
 
+
 //---------------- MAIN LOOP ----------------
 void loop() {
-  if (sistemaTravado) {
-    Serial.print("sistema travado por ");
-    Serial.print(tempoTravadoUs / 1000000);
-    Serial.println("segundos.");
+  if (lockedSystem) {
+    Serial.print("locked system for");
+    Serial.print(TimeLockedUs / 1000000);
+    Serial.println("seconds.");
 
     startTimer2();
-    delayMicroseconds(tempoTravadoUs);
-    sistemaTravado = 0;
+    delayMicroseconds(TimeLockedUs);
+    lockedSystem = 0;
     startTimer();
-    numMotorAtivadoCheck = 0;
+    ActivadeMotorCheck = 0;
   }
 
-  if (limpeza) {
-    numMotorAtivadoCheck = 0;
-    limpeza = 0;
+  if (cleaning) {
+    ActivadeMotorCheck = 0;
+    cleaning = 0;
   }
 
-  leitura = digitalRead(botao);
-  if (leitura == 1) {
-    while (leitura == 1)
-      leitura = digitalRead(botao);
-    if (wifiStatus == 0) {
-      esp_wifi_start();
+  read = digitalRead(PinButton);
+  if (read == 1) {
+    while (read == 1)                                               //wait Release buttom
+      read = digitalRead(PinButton);
+    if (wifiStatus == 0) {                                          //if wifi are OFF
+      esp_wifi_start();                                             //Start Wifi
       digitalWrite(PinLED, wifiStatus = 1);
     }
-    else if (wifiStatus == 1) {
-      esp_wifi_stop();
+    else if (wifiStatus == 1) {                                     //if wifi are ON
+      esp_wifi_stop();                                              //Stop Wifi
       digitalWrite(PinLED, wifiStatus = 0);
     }
     delay(6000);
   }
-  if (wifiStatus) {
+  if (wifiStatus) {                                                 //configuration Mode listening
     htmlx();
   }
-  else {
+  else {                                                            //evaluate Heel -> Tip Sensor
     getSinal();                                                 
-    if (ValueSensorCalcanhar > forca && (!estaParado())) {      
-      while (ValueSensorCalcanhar > forca || flag != 1) {      
+    if (ValueSensorHeel > StrLimit && (!isStopped())) {
+      while (ValueSensorHeel > StrLimit || flag != 1) {
         getSinal();
-        if (ValueSensorPonta > forca) {                       
-          sair = 1;                                           
-          while (ValueSensorPonta > forca)                    
+        if (ValueSensorTip > StrLimit) {
+          exit = 1;
+          while (ValueSensorTip > StrLimit)
             getSinal();                                      
           break;
         }
-        if (sair == 1)
+        if (exit == 1)
           break;
-        if (ValueSensorCalcanhar <= forca)
+        if (ValueSensorHeel <= StrLimit)
           flag = 1;
       }
     }
-    else if (ValueSensorPonta > forca && (!estaParado())) {
-      while (ValueSensorPonta > forca || flag != 1) {      
+    else if (ValueSensorTip > StrLimit && (!isStopped())) {         //Evaluate Tip -> Heel Sensor
+      while (ValueSensorTip > StrLimit || flag != 1) {
         getSinal();
-        if (ValueSensorCalcanhar > forca) {                  
-          sair = 1;                                    
-          while (ValueSensorCalcanhar > forca)            
+        if (ValueSensorHeel > StrLimit) {
+          exit = 1;
+          while (ValueSensorHeel > StrLimit)
             getSinal();                                
           break;
         }
-        if (sair == 1)
+        if (exit == 1)
           break;
-        if (ValueSensorPonta <= forca)
+        if (ValueSensorTip <= StrLimit)
           flag = 1;
       }
     }
-    else if (ValueSensorMeio > forca && (!estaParado())) {
-      while (ValueSensorMeio > forca || flag != 1) {
+    else if (ValueSensorCenter > StrLimit && (!isStopped())) {      //Evaluate Center -> Tip Sensor (Stair Walking)
+      while (ValueSensorCenter > StrLimit || flag != 1) {
         getSinal();
-        if (ValueSensorPonta > forca) {                   
-          sair = 1;                                     
-          while (ValueSensorPonta > forca)           
+        if (ValueSensorTip > StrLimit) {
+          exit = 1;
+          while (ValueSensorTip > StrLimit)
             getSinal();                                 
           break;
         }    
-        if (sair == 1)
+        if (exit == 1)
           break;
-        if (ValueSensorMeio <= forca)
+        if (ValueSensorCenter <= StrLimit)
           flag = 1;
       }
     }
     
-    if (flag == 1) {
-      numMotorAtivadoCheck++;
-      numPassosErradoLoad++;
-      deleteFile(SPIFFS, "/passos.txt");
-      appendFile(SPIFFS, "/passos.txt", (String)numPassosErradoLoad);
-      vibrar();
+    if (flag == 1) {                                                //if Walked wrong Pulse Motor
+      ActivadeMotorCheck++;
+      wrongStepsLoad++;
+      deleteFile(SPIFFS, "/steps.txt");
+      appendFile(SPIFFS, "/steps.txt", (String)wrongStepsLoad);
+      pulseMotor();
       flag = 0;
     }
-    sair = 0;
+    exit = 0;
   }
 }
 
 // --------------- FUNCTIONS ---------------
 void getSinal() {
-  ValueSensorCalcanhar = analogRead(PinValueSensorCalcanhar);
-  ValueSensorMeio = analogRead(PinValueSensorMeio);
-  ValueSensorPonta = analogRead(PinValueSensorPonta);
-  Serial.print("sensor do calcanhar: ");
-  Serial.println(ValueSensorCalcanhar);
-  Serial.print("sensor do meio: ");
-  Serial.println(ValueSensorMeio);
-  Serial.printf("sensor da ponta: ");
-  Serial.println(ValueSensorPonta);
-  Serial.printf("num: ");
-  Serial.println(numMotorAtivadoCheck);
+  ValueSensorHeel = analogRead(PinValueSensorHeel);
+  ValueSensorCenter = analogRead(PinValueSensorCenter);
+  ValueSensorTip = analogRead(PinValueSensorTip);
+  Serial.print("Heel Sensor: ");
+  Serial.println(ValueSensorHeel);
+  Serial.print("Center Sensor: ");
+  Serial.println(ValueSensorCenter);
+  Serial.printf("Tip Sensor: ");
+  Serial.println(ValueSensorTip);
+  Serial.printf("Activade motor check: ");
+  Serial.println(ActivadeMotorCheck);
 }
 
-void vibrar() {
+void pulseMotor() {
   ledcWrite(2, map(pwmLoad, 0, 100, 350 , 1022));
-  delay(tempoMotorMs);
+  delay(TimeMotorMs);
   ledcWrite(2, 0);
 }
 
 void checkMotor() {
-  limpeza = 1;
-  if ((numMotorAtivadoCheck >= ativJokeLoad) && !wifiStatus) {
-    sistemaTravado = 1;
+  cleaning = 1;
+  if ((ActivadeMotorCheck >= activeJokeLoad) && !wifiStatus) {
+    lockedSystem = 1;
     stopTimer();
   }
 }
@@ -248,7 +249,7 @@ void checkMotor() {
 void startTimer() {
   timer = timerBegin(3, 80, true);
   timerAttachInterrupt(timer, &checkMotor, true);
-  timerAlarmWrite(timer, tempoCheckUs, true);
+  timerAlarmWrite(timer, TimeCheckUs, true);
   timerAlarmEnable(timer);
 }
 
@@ -259,7 +260,7 @@ void stopTimer() {
 
 void interrupionBlink() {
   digitalWrite(PinLED, interruption = !interruption);
-  if ( sistemaTravado == 0) {
+  if ( lockedSystem == 0) {
     digitalWrite(PinLED, interruption = 0);
     stopTimer2();
   }
@@ -277,28 +278,28 @@ void stopTimer2() {
   timer2 = NULL;
 }
 
-bool estaParado() {
-  ValueAcelerX = ((analogRead(PinAcelerX))*3.3)/4095; //read from PinAcelerX
-  ValueAcelerY = ((analogRead(PinAcelerY))*3.3)/4095; //read from PinAcelerY
-  ValueAcelerZ = ((analogRead(PinAcelerZ))*3.3)/4095; //read from PinAcelerZ
-  float mod=sqrt( pow(ValueAcelerX,2) + pow(ValueAcelerY,2) + pow(ValueAcelerZ,2) );
+bool isStopped() {
+  ValueAccelX = ((analogRead(PinAccelX))*3.3)/4095; //read from PinAccelX
+  ValueAccelY = ((analogRead(PinAccelY))*3.3)/4095; //read from PinAccelY
+  ValueAccelZ = ((analogRead(PinAccelZ))*3.3)/4095; //read from PinAccelZ
+  float mod=sqrt( pow(ValueAccelX,2) + pow(ValueAccelY,2) + pow(ValueAccelZ,2) );
     if( mod>=2.90 && mod <= 3.21)
         return true;
       else return false;
 }
 
 void htmlx() {
-  WiFiClient client = servidor.available();   // Listen for incoming clients
+  WiFiClient client = server.available();                           // Listen for incoming clients
   String payload ;
   String vibration;
   String playtime;
   String sleep ;
-  if (client) {                             // If a new client connects,
+  if (client) {                                                     // If a new client connects,
     String request = "";
     boolean emptyLine = true;
-    while (client.connected()) {            // loop while the client's connected
-      if (client.available()) {             // if there's bytes to read from the client,
-        char c = client.read();             // read a byte, then
+    while (client.connected()) {                                    // loop while the client's connected
+      if (client.available()) {                                     // if there's bytes to read from the client,
+        char c = client.read();                                     // read a byte
         request += c;
         if (c == '\n' && emptyLine) {
           if (request.indexOf("GET /") >= 0) {
@@ -313,31 +314,31 @@ void htmlx() {
             if (payload != "favicon.ico" && payload != "") {
               if (payload == "resetConfiguration") {
                 pwmLoad = defaultPwm;
-                ativJokeLoad = defaultJoke;
+                activeJokeLoad = defaultJoke;
                 deleteFile(SPIFFS, "/pwm.txt");
                 appendFile(SPIFFS, "/pwm.txt", (String)pwmLoad );
                 deleteFile(SPIFFS, "/playtime.txt");
-                appendFile(SPIFFS, "/playtime.txt", (String)ativJokeLoad);
+                appendFile(SPIFFS, "/playtime.txt", (String)activeJokeLoad);
               } else if (payload == "clearPassCounter") {
-                numPassosErradoLoad = 0;
-                deleteFile(SPIFFS, "/passos.txt");
-                appendFile(SPIFFS, "/passos.txt", "0");
+                wrongStepsLoad = 0;
+                deleteFile(SPIFFS, "/steps.txt");
+                appendFile(SPIFFS, "/steps.txt", "0");
               } else {
                 vibration = payload.substring(payload.indexOf("vibration=") + 10, payload.indexOf('&'));
                 String  playtime1 =  payload.substring(payload.indexOf("playtime=") + 9);
                 playtime = playtime1.substring(0, playtime1.indexOf('&'));
                 pwmLoad = vibration.toInt();
-                ativJokeLoad = playtime.toInt();
+                activeJokeLoad = playtime.toInt();
                 if (pwmLoad > 100)
                     pwmLoad = 100;
                 else if (pwmLoad < 0)
                     pwmLoad = 0;
-                if (ativJokeLoad < 1)
-                    ativJokeLoad = 1;
+                if (activeJokeLoad < 1)
+                    activeJokeLoad = 1;
                 deleteFile(SPIFFS, "/pwm.txt");
                 appendFile(SPIFFS, "/pwm.txt", (String)pwmLoad);
                 deleteFile(SPIFFS, "/playtime.txt");
-                appendFile(SPIFFS, "/playtime.txt", (String)ativJokeLoad);
+                appendFile(SPIFFS, "/playtime.txt", (String)activeJokeLoad);
               }
             }
           }
@@ -358,7 +359,6 @@ void htmlx() {
           html += "<input class=form-control id=vibration name=vibration value=':vibration' type=number min=1 max=100>";
           html += "</div>";
           html += "<div class='col-xs-12 col-sm-12 col-md-3 col-lg-3'><label for='playtime'><abbr title='Vezes em que o vibrar deve ser desconsiderado por se tratar de uma brincadeira'>Playtime</abbr></label><input class='form-control' id='playtime' value=':playtime'type='number' min='1' name='playtime'></div>";
-        //html += "<div class='col-xs-12 col-sm-12 col-md-3 col-lg-3'><label for='sleep'><abbr title='Tempo de Descanso'>Tempo de Descanso(s)</abbr></label><br><input class='form-control' value=':sleep'id='sleep' type='number' name=sleep></div>";
           html += "<div class='col-xs-12 col-sm-12 col-md-12 col-lg-12' style='padding-top: 10px'><button type='submit' class='btn btn-success btn-block'>Salvar Configuração</button></div>";
           html += "</div>";
           html += "</form>";
@@ -372,24 +372,21 @@ void htmlx() {
           html += "</body>";
           html += "</html>";
           html.replace(":vibration", (String)pwmLoad);
-          html.replace(":playtime", (String)ativJokeLoad);
-          html.replace(":sleep", "20");
-          html.replace(":passCounter", (String)numPassosErradoLoad);
+          html.replace(":playtime", (String)activeJokeLoad);
+          html.replace(":passCounter", (String)wrongStepsLoad);
           client.println(html);
           client.println();
           break;
         }
-        if (c == '\n') {  // inicio de uma nova linha
+        if (c == '\n') {
           emptyLine = true;
-        } else if (c != '\r') {  // existe pelo menos um caracter na linha atual
+        } else if (c != '\r') {
           emptyLine = false;
         }
       }
     }
-    // Clear the header variable
-    // Close the connection
-    client.stop();
-    Serial.println("Client disconnected.");
+    client.stop();                                              // Clear the header variable
+    Serial.println("Client disconnected.");                     // Close the connection
   }
 }
 
@@ -430,7 +427,7 @@ String readFileTo(fs::FS &fs, const char * path) {
   File file = fs.open(path);
   if (!file || file.isDirectory()) {
     Serial.println("- failed to open file for reading");
-    return "erro";
+    return "error";
   }
   else {
     while (file.available()) {
@@ -440,7 +437,7 @@ String readFileTo(fs::FS &fs, const char * path) {
   }
 }
 
-void appendFile(fs::FS &fs, const char * path, String  msg) {
+void appendFile(fs::FS &fs, const char * path, String  message) {
   Serial.printf("Appending to file: %s  - ", path);
 
   File file = fs.open(path, FILE_APPEND);
@@ -448,7 +445,7 @@ void appendFile(fs::FS &fs, const char * path, String  msg) {
     Serial.println("- failed to open file for appending");
     return;
   }
-  if (file.print(msg)) {
+  if (file.print(message)) {
     Serial.println("- message appended");
   } else {
     Serial.println("- append failed");
