@@ -12,6 +12,7 @@
 #include <esp_wifi.h>                                               // Low level library to ESP-32 WIFI
 #include "FS.h"                                                     // File System
 #include "SPIFFS.h"                                                 // SPIFFS
+#include <Wire.h>
 // --------------- OBJECT INSTANCE ---------------
 WiFiServer server (80);                                             //Instance a WifiServer object 'server' on port 80
 // --------------- TIMER POINTERS ---------------
@@ -30,6 +31,13 @@ const char *password = "parape123";                                 // password 
 #define PinAccelY  32                                               //Read Pin of accelerometer Y
 #define PinAccelZ  32                                               //Read Pin of accelerometer Z
 #define PinButton 23
+// -------------- I2C --------------------
+#define MMA8452_ADDRESS 0x1D
+#define OUT_X_MSB 0x01
+#define CTRL_REG1  0x2A
+
+
+
 // --------------- OUTPUT PIN ---------------
 #define PinMotor 4                                                  //Motor Pin
 #define PinLED 2                                                    // LED Pin
@@ -54,12 +62,12 @@ int ValueAccelX = 0;                                                //accelerome
 int ValueAccelY = 0;                                                //accelerometer Y Value
 int ValueAccelZ = 0;                                                //accelerometer Z Value
 // ---------------- AUX VAR ----------------
-bool exit = 0;                                                      //flag to exit if steps-sequence are right
+bool exitL = 0;                                                      //flag to exit if steps-sequence are right
 bool flag = 0;                                                      //flag to Activate Motor if steps-sequence are Wrong
 bool lockedSystem = 0;                                              //flag to Locked up System
 bool interruption = 0;                                              //flag to Interruption System
 bool cleaning = 0;                                                  //flag to clean flags
-bool read = 0;                                                      //Buttom Digital Read
+bool readB = 0;                                                      //Buttom Digital Read
 bool wifiStatus = 0;                                                //Configuration Mode Status
 int ActivadeMotorCheck = 0;                                         //Lower Limit Playtime
 // ---------------- FUNCTIONS DECLARATION ----------------
@@ -115,6 +123,13 @@ void setup() {
   pinMode(PinMotor, OUTPUT);
   pinMode(PinButton, INPUT_PULLDOWN);
   digitalWrite (PinMotor, LOW);
+  
+  Wire.beginTransmission(MMA8452_ADDRESS);
+  Wire.write(CTRL_REG1);
+  byte wrote=1;
+  Wire.write(wrote);
+  Wire.endTransmission();
+  
   server.begin();                                                   //Start a WiFi server
   startTimer();
   digitalWrite (PinLED, LOW);
@@ -140,10 +155,10 @@ void loop() {
     cleaning = 0;
   }
 
-  read = digitalRead(PinButton);
-  if (read == 1) {
-    while (read == 1)                                               //wait Release buttom
-      read = digitalRead(PinButton);
+  readB = digitalRead(PinButton);
+  if (readB == 1) {
+    while (readB == 1)                                               //wait Release buttom
+      readB = digitalRead(PinButton);
     if (wifiStatus == 0) {                                          //if wifi are OFF
       esp_wifi_start();                                             //Start Wifi
       digitalWrite(PinLED, wifiStatus = 1);
@@ -163,12 +178,12 @@ void loop() {
       while (ValueSensorHeel > StrLimit || flag != 1) {
         getSinal();
         if (ValueSensorTip > StrLimit) {
-          exit = 1;
+          exitL = 1;
           while (ValueSensorTip > StrLimit)
             getSinal();                                      
           break;
         }
-        if (exit == 1)
+        if (exitL == 1)
           break;
         if (ValueSensorHeel <= StrLimit)
           flag = 1;
@@ -178,12 +193,12 @@ void loop() {
       while (ValueSensorTip > StrLimit || flag != 1) {
         getSinal();
         if (ValueSensorHeel > StrLimit) {
-          exit = 1;
+          exitL = 1;
           while (ValueSensorHeel > StrLimit)
             getSinal();                                
           break;
         }
-        if (exit == 1)
+        if (exitL == 1)
           break;
         if (ValueSensorTip <= StrLimit)
           flag = 1;
@@ -193,12 +208,12 @@ void loop() {
       while (ValueSensorCenter > StrLimit || flag != 1) {
         getSinal();
         if (ValueSensorTip > StrLimit) {
-          exit = 1;
+          exitL = 1;
           while (ValueSensorTip > StrLimit)
             getSinal();                                 
           break;
         }    
-        if (exit == 1)
+        if (exitL == 1)
           break;
         if (ValueSensorCenter <= StrLimit)
           flag = 1;
@@ -213,7 +228,7 @@ void loop() {
       pulseMotor();
       flag = 0;
     }
-    exit = 0;
+    exitL = 0;
   }
 }
 
@@ -279,13 +294,27 @@ void stopTimer2() {
 }
 
 bool isStopped() {
-  ValueAccelX = ((analogRead(PinAccelX))*3.3)/4095; //read from PinAccelX
-  ValueAccelY = ((analogRead(PinAccelY))*3.3)/4095; //read from PinAccelY
-  ValueAccelZ = ((analogRead(PinAccelZ))*3.3)/4095; //read from PinAccelZ
-  float mod=sqrt( pow(ValueAccelX,2) + pow(ValueAccelY,2) + pow(ValueAccelZ,2) );
-    if( mod>=2.90 && mod <= 3.21)
-        return true;
-      else return false;
+  delay(1);
+  Wire.beginTransmission(MMA8452_ADDRESS);
+  Wire.write(OUT_X_MSB);
+  Wire.endTransmission(false);
+  Wire.requestFrom(MMA8452_ADDRESS, 6);
+  byte data[6];
+  int i=0;
+  while(Wire.available()){
+    data[i]=Wire.read();
+    i++;
+  }
+  int x = ((short)(data[0] << 8 | data[1])) >> 4;
+  int y = ((short)(data[2] << 8 | data[3])) >> 4;
+  int z = ((short)(data[4] << 8 | data[5])) >> 4;
+  float cx = (float) x / (float)(1<<11) * (float)(2);
+  float cy = (float) y / (float)(1<<11) * (float)(2);
+  float cz = (float) z / (float)(1<<11) * (float)(2);
+  float acele = sqrt( pow(cy,2) + 0.4*pow(cz,2));
+  if(acele >= 0.48 && acele <= 0.77)
+    return true;
+    else return false;
 }
 
 void htmlx() {
