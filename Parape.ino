@@ -12,7 +12,6 @@
 #include <esp_wifi.h>                                               // Low level library to ESP-32 WIFI
 #include "FS.h"                                                     // File System
 #include "SPIFFS.h"                                                 // SPIFFS
-#include <Wire.h>
 // --------------- OBJECT INSTANCE ---------------
 WiFiServer server (80);                                             //Instance a WifiServer object 'server' on port 80
 // --------------- TIMER POINTERS ---------------
@@ -29,12 +28,12 @@ const char *password = "parape123";                                 // password 
 #define PinValueSensorTip 36                                        //Read Pin of Tip Sensor
 #define PinAccelX  35                                               //Read Pin of accelerometer X
 #define PinAccelY  32                                               //Read Pin of accelerometer Y
-#define PinAccelZ  32                                               //Read Pin of accelerometer Z
+#define PinAccelZ  33                                              //Read Pin of accelerometer Z
 #define PinButton 23
 // -------------- I2C --------------------
-#define MMA8452_ADDRESS 0x1D
-#define OUT_X_MSB 0x01
-#define CTRL_REG1  0x2A
+//#define MMA8452_ADDRESS 0x1D
+//#define OUT_X_MSB 0x01
+//#define CTRL_REG1  0x2A
 
 
 
@@ -58,9 +57,9 @@ int wrongStepsLoad;                                                 //Use/load w
 int ValueSensorHeel = 0;                                            //Heel Sensor Value
 int ValueSensorCenter = 0;                                          //Center Sensor Value
 int ValueSensorTip = 0;                                             //Tip Sensor  Value
-int ValueAccelX = 0;                                                //accelerometer X Value
-int ValueAccelY = 0;                                                //accelerometer Y Value
-int ValueAccelZ = 0;                                                //accelerometer Z Value
+float ValueAccelX = 0.0;                                                //accelerometer X Value
+float ValueAccelY = 0.0;                                                //accelerometer Y Value
+float ValueAccelZ = 0.0;                                                //accelerometer Z Value
 // ---------------- AUX VAR ----------------
 bool exitL = 0;                                                      //flag to exit if steps-sequence are right
 bool flag = 0;                                                      //flag to Activate Motor if steps-sequence are Wrong
@@ -70,6 +69,9 @@ bool cleaning = 0;                                                  //flag to cl
 bool readB = 0;                                                      //Buttom Digital Read
 bool wifiStatus = 0;                                                //Configuration Mode Status
 int ActivadeMotorCheck = 0;                                         //Lower Limit Playtime
+byte i=0;
+int mean=20;
+
 // ---------------- FUNCTIONS DECLARATION ----------------
 void getSinal() ;                                                   //Read Sensors
 void pulseMotor();                                                  //Vibrate Motor
@@ -124,11 +126,11 @@ void setup() {
   pinMode(PinButton, INPUT_PULLDOWN);
   digitalWrite (PinMotor, LOW);
   
-  Wire.beginTransmission(MMA8452_ADDRESS);
-  Wire.write(CTRL_REG1);
-  byte wrote=1;
-  Wire.write(wrote);
-  Wire.endTransmission();
+//  Wire.beginTransmission(MMA8452_ADDRESS);
+//  Wire.write(CTRL_REG1);
+//  byte wrote=1;
+//  Wire.write(wrote);
+//  Wire.endTransmission();
   
   server.begin();                                                   //Start a WiFi server
   startTimer();
@@ -173,8 +175,9 @@ void loop() {
     htmlx();
   }
   else {                                                            //evaluate Heel -> Tip Sensor
+
     getSinal();                                                 
-    if (ValueSensorHeel > StrLimit && (!isStopped())) {
+    if ( (!isStopped()) && (ValueSensorHeel > StrLimit ) ) {
       while (ValueSensorHeel > StrLimit || flag != 1) {
         getSinal();
         if (ValueSensorTip > StrLimit) {
@@ -189,7 +192,7 @@ void loop() {
           flag = 1;
       }
     }
-    else if (ValueSensorTip > StrLimit && (!isStopped())) {         //Evaluate Tip -> Heel Sensor
+    else if ((!isStopped()) && ValueSensorTip > StrLimit) {         //Evaluate Tip -> Heel Sensor
       while (ValueSensorTip > StrLimit || flag != 1) {
         getSinal();
         if (ValueSensorHeel > StrLimit) {
@@ -204,7 +207,7 @@ void loop() {
           flag = 1;
       }
     }
-    else if (ValueSensorCenter > StrLimit && (!isStopped())) {      //Evaluate Center -> Tip Sensor (Stair Walking)
+    else if ((!isStopped()) && ValueSensorCenter > StrLimit ) {      //Evaluate Center -> Tip Sensor (Stair Walking)
       while (ValueSensorCenter > StrLimit || flag != 1) {
         getSinal();
         if (ValueSensorTip > StrLimit) {
@@ -237,14 +240,6 @@ void getSinal() {
   ValueSensorHeel = analogRead(PinValueSensorHeel);
   ValueSensorCenter = analogRead(PinValueSensorCenter);
   ValueSensorTip = analogRead(PinValueSensorTip);
-  Serial.print("Heel Sensor: ");
-  Serial.println(ValueSensorHeel);
-  Serial.print("Center Sensor: ");
-  Serial.println(ValueSensorCenter);
-  Serial.printf("Tip Sensor: ");
-  Serial.println(ValueSensorTip);
-  Serial.printf("Activade motor check: ");
-  Serial.println(ActivadeMotorCheck);
 }
 
 void pulseMotor() {
@@ -294,27 +289,30 @@ void stopTimer2() {
 }
 
 bool isStopped() {
-  delay(1);
-  Wire.beginTransmission(MMA8452_ADDRESS);
-  Wire.write(OUT_X_MSB);
-  Wire.endTransmission(false);
-  Wire.requestFrom(MMA8452_ADDRESS, 6);
-  byte data[6];
-  int i=0;
-  while(Wire.available()){
-    data[i]=Wire.read();
-    i++;
+    i=0;
+  ValueAccelX = 0.0;
+  ValueAccelY = 0.0;
+  ValueAccelZ = 0.0;
+  for(i;i<mean;i++){
+   ValueAccelX += ((analogRead(PinAccelX))*3.3)/4095; //read from PinAccelX
+   ValueAccelY += ((analogRead(PinAccelY))*3.3)/4095; //read from PinAccelY
+   ValueAccelZ += ((analogRead(PinAccelZ))*3.3)/4095; //read from PinAccelZ
+   delay(1);
   }
-  int x = ((short)(data[0] << 8 | data[1])) >> 4;
-  int y = ((short)(data[2] << 8 | data[3])) >> 4;
-  int z = ((short)(data[4] << 8 | data[5])) >> 4;
-  float cx = (float) x / (float)(1<<11) * (float)(2);
-  float cy = (float) y / (float)(1<<11) * (float)(2);
-  float cz = (float) z / (float)(1<<11) * (float)(2);
-  float acele = sqrt( pow(cy,2) + 0.4*pow(cz,2));
-  if(acele >= 0.48 && acele <= 0.77)
-    return true;
-    else return false;
+  ValueAccelX = ValueAccelX/mean;
+  ValueAccelY = ValueAccelY/mean;
+  ValueAccelZ = ValueAccelZ/mean;
+  
+  float mod=sqrt(   0.22*(pow(ValueAccelX,2)) + 2*(pow(ValueAccelY,2)) + 0.1*(pow(ValueAccelZ,2)) );
+  Serial.print(mod);Serial.println(" ");
+    if(  mod>=2.2 && mod <= 2.4 )
+        return true;
+          else{
+            Serial.println("ANDOU ");
+            return false; 
+          }
+            
+          
 }
 
 void htmlx() {
