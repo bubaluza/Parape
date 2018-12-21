@@ -30,13 +30,6 @@ const char *password = "parape123";                                 // password 
 #define PinAccelY  32                                               //Read Pin of accelerometer Y
 #define PinAccelZ  33                                              //Read Pin of accelerometer Z
 #define PinButton 23
-// -------------- I2C --------------------
-//#define MMA8452_ADDRESS 0x1D
-//#define OUT_X_MSB 0x01
-//#define CTRL_REG1  0x2A
-
-
-
 // --------------- OUTPUT PIN ---------------
 #define PinMotor 4                                                  //Motor Pin
 #define PinLED 2                                                    // LED Pin
@@ -124,14 +117,7 @@ void setup() {
   Serial.println("ESP32 started and openned Serial");
   pinMode(PinMotor, OUTPUT);
   pinMode(PinButton, INPUT_PULLDOWN);
-  digitalWrite (PinMotor, LOW);
-  
-//  Wire.beginTransmission(MMA8452_ADDRESS);
-//  Wire.write(CTRL_REG1);
-//  byte wrote=1;
-//  Wire.write(wrote);
-//  Wire.endTransmission();
-  
+  digitalWrite (PinMotor, LOW); 
   server.begin();                                                   //Start a WiFi server
   startTimer();
   digitalWrite (PinLED, LOW);
@@ -303,11 +289,11 @@ bool isStopped() {
   ValueAccelZ = ValueAccelZ/mean;
   
   float mod=sqrt(   0.22*(pow(ValueAccelX,2)) + 2*(pow(ValueAccelY,2)) + 0.1*(pow(ValueAccelZ,2)) );
-  Serial.print(mod);Serial.println(" ");
+
     if(  mod>=2.2 && mod <= 2.4 )
         return true;
           else{
-            Serial.println("ANDOU ");
+
             return false; 
           }
             
